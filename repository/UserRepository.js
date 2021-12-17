@@ -1,147 +1,72 @@
-const UserEntity = require('../entities/UserEntity')
-const RoleEntity = require('../entities/RoleEntity')
+const UserEntity = require('../entities/UserEntity');
+const RoleEntity = require('../entities/RoleEntity');
+const jwt = require("jsonwebtoken");
+const {secret} = require("../config/config");
 
 class UserRepository {
     async getUsers(req, res) {
         try {
-            const { username } = req.body; // username = name
-            const getByName = await UserEntity.findOne({username})
-            console.log('getUser')
-            if(!getByName) { res
-                .status(400)
-                .json({message: `User with name ${username} not found ~~ getUsers(username).`})
-            }
-            console.log('getByName', getByName)
-            const { role, subordinates } = getByName
+            const token = req.headers.authorization.split(' ')[1];
+            const {role, id} = jwt.verify(token, secret);
             if(role === 'User'){
-                console.log('user')
-                res.json(username)
+                const user = await UserEntity.findOne({_id: id});
+                return res.json(user);
             }
             if(role === 'Boss'){
-                console.log('boss')
-                res.json({subordinates, username})
+                const user = await UserEntity.findOne({_id: id})
+                const {username} = user;
+                const getByName = await UserEntity.find({$or: [{username: username}, {boss: username}]});
+                return res.json(getByName);
             }
             if(role === 'Admin'){
-                console.log('admin')
                 const users = await UserEntity.find()
-                res.json(users)
+                return res.json(users)
             }
-            console.log('return')
-            return
+            return res.json({message: "Misaligned user role."});
         } catch (e) {
-            console.log(e)
+            return console.log(e);
         }
 
     }
-    async getAll(res) {
-        try {
-            const users = await UserEntity.find()
-            res.json(users)
-        } catch (e) {
-            console.log(e)
-        }
-    }
-
     async setRole(req, res) { // TODO: delete this, command for admin
         try {
+            const token = req.headers.authorization.split(' ')[1];
+            const {role} = jwt.verify(token, secret);
+            if(role !== 'Admin') return res.json({message: "You don't have permission to use this."});
             const {username, newRole} = req.body;
-            const userRole = await RoleEntity.findOne({value: newRole})
+            const userRole = await RoleEntity.findOne({value: newRole});
             if(!userRole) { res
                 .status(400)
                 .json({message: `Role ${newRole} not found.`})
             }
             await UserEntity.updateOne({username: username},
-                { $set: { role : newRole }})
-            return res.json({message: "Role was changed."})
+                { $set: { role : newRole, boss: null }});
+            return res.json({message: "Role was changed."});
         } catch (e) {
-            console.log(e)
+            return console.log(e);
         }
     }
-    async setSubordinate(req, res) {
+    async setBoss(req, res) {
         try {
-            const {username, subordinates} = req.body;
-            const user = await UserEntity.findOne({username: subordinates})
-            if(!user) { res
-                .status(400)
-                .json({message: `User with username: ${subordinates} not found.`})
-            }
-            const { boss } = user
-            if(boss === null){
-                const getRolByName = await UserEntity.findOne({username: username})
-                if(!getRolByName) { res
-                    .status(400)
-                    .json({message: `New boss with username: ${username} not found.`})
-                }
-                const { role } = getRolByName;
-                if(role === 'Boss'){
-                    await UserEntity.updateOne({username: username},
-                        { $push: { subordinates: [ subordinates ] }})
+            const { subordinate, newBoss } = req.body;
+            const token = req.headers.authorization.split(' ')[1];
+            const {id, role} = jwt.verify(token, secret);
+            if(role !== 'Boss') return res.json({message: "You don't have permission to use this."});
 
-                    await UserEntity.updateOne({username: subordinates},
-                        { $set: { boss: username }})
+            const checkRole = await UserEntity.findOne({username: newBoss, role: 'Boss'})
+            if(!checkRole) return res.json({message: "This user has an inappropriate role."})
 
-                    return res.json({message: "Bos was set."})
+                const getBoss = await UserEntity.findOne({_id: id})
+                const { username } = getBoss;
+                const getSubordinate = await UserEntity.findOne({username: subordinate, boss: username});
+                if(getSubordinate){
+                    await UserEntity.updateOne({username: subordinate},
+                        { $set: { boss : newBoss }})
+                    return res.json({message: "Boss was changed."});
                 }
-                return res.json({message: `Requires a boss role, your role is: ${role}`})
-            }
-            return res.json({message: `This user ${username} already has a boss ${boss}`})
+                return res.json({message: `A subordinate with name ${subordinate} was not found.`});
         } catch (e) {
-            console.log(e)
-        }
-    }
-    async checkSubordinate(username, newSubordinate){
-        const user = await UserEntity.findOne({username})
-        if(!user) { res
-            .status(400)
-            .json({message: `User with username: ${username} not found.`})
-        }
-        const { subordinates } = user
-       return subordinates.includes(newSubordinate)
-    }
-
-    async unsetSubordinates(username, formerSubordinates){
-        const user = await UserEntity.findOne({username: username})
-        if(!user) { res
-            .status(400)
-            .json({message: `User with username: ${username} not found.`})
-        }
-        const { subordinates } = user
-        const index = subordinates.indexOf(formerSubordinates);
-        if (index > -1) {
-            subordinates.splice(index, 1);
-        }
-        await UserEntity.updateOne({username: username},
-            { $set: { subordinates: subordinates }})
-        return true;
-    }
-
-    async transferSubordinate(req, res) {
-        try {
-            const {username, subordinates, newBoss} = req.body;
-            const user = await UserEntity.findOne({username: subordinates})
-            if(!user) { res
-                .status(400)
-                .json({message: `User with username: ${subordinates} not found.`})
-            }
-            const { boss } = user
-            if(boss === username){
-                const getNewBossStrict = await UserEntity.findOne({username: newBoss})
-                if(!getNewBossStrict) { res
-                    .status(400)
-                    .json({message: `New boss with username: ${newBoss} not found.`})
-                }
-                const { boss } = getNewBossStrict;
-                if(boss === null){
-                    await UserEntity.updateOne({username: newBoss},
-                        { $push: { subordinates: [ subordinates ] }})
-                    await this.unsetSubordinates(username, subordinates)
-                    return res.json({message: "Bos was changed."})
-                }
-                return res.json({message: "This user already has a boss."})
-            }
-            return res.json({message: `This user ${username} is not the boss for ${subordinates}`})
-        } catch (e) {
-            console.log(e)
+            return console.log(e);
         }
     }
 }

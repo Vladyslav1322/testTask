@@ -1,4 +1,4 @@
-const {Schema, model} = require('mongoose')
+const {Schema, model} = require('mongoose');
 
 const RoleEntity = new Schema({
     value: {
@@ -6,6 +6,6 @@ const RoleEntity = new Schema({
         unique: true,
         default: 'User'
     },
-})
+});
 
-module.exports = model("RoleEntity", RoleEntity)
+module.exports = model("RoleEntity", RoleEntity);
