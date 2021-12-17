@@ -14,7 +14,9 @@ router.post('/login', authRepository.login);
 
 // UserRepository
 router.get('/getUsers',authMiddleware, userRepository.getUsers);
-router.post('/setRole', userRepository.setRole);
-router.post('/setBoss', userRepository.setBoss);
+router.post('/setRole',authMiddleware, userRepository.setRole);
+router.post('/setBoss',authMiddleware, userRepository.setBoss);
+router.post('/addRole',authMiddleware, userRepository.addNewRole);
+
 
 module.exports = router;

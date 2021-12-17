@@ -69,6 +69,20 @@ class UserRepository {
             return console.log(e);
         }
     }
+    async addNewRole(req, res){
+        try {
+            const { newRole } = req.body;
+            const token = req.headers.authorization.split(' ')[1];
+            const {role} = jwt.verify(token, secret);
+            if(role !== 'Admin') return res.json({message: "You don't have permission to use this."});
+
+            const addRole = new RoleEntity({value: newRole});
+            await addRole.save();
+            return res.json({message: `Role added successfully.`});
+        } catch (e) {
+            return console.log(e);
+        }
+    }
 }
 
 
