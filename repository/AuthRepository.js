@@ -5,10 +5,11 @@ const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const { secret } = require("../config/config");
 
-const createAccessToken = (id, role) => {
+const createAccessToken = (id, role, username) => {
     const payload = {
         id,
-        role
+        role,
+        username,
     };
     return jwt.sign(payload, secret, {expiresIn: "4h"} );
 }
@@ -57,7 +58,7 @@ class AuthRepository {
                 return res.status(400)
                     .json({message: `Incorrect password entered`});
             }
-            const token = createAccessToken(user._id, user.role);
+            const token = createAccessToken(user._id, user.role, username);
             return res.json({token});
         } catch (e) {
             console.log(e)

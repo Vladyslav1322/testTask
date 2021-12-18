@@ -7,14 +7,12 @@ class UserRepository {
     async getUsers(req, res) {
         try {
             const token = req.headers.authorization.split(' ')[1];
-            const {role, id} = jwt.verify(token, secret);
+            const {role, id, username} = jwt.verify(token, secret);
             if(role === 'User'){
                 const user = await UserEntity.findOne({_id: id});
                 return res.json(user);
             }
             if(role === 'Boss'){
-                const user = await UserEntity.findOne({_id: id})
-                const {username} = user;
                 const getByName = await UserEntity.find({$or: [{username: username}, {boss: username}]});
                 return res.json(getByName);
             }
@@ -50,21 +48,19 @@ class UserRepository {
         try {
             const { subordinate, newBoss } = req.body;
             const token = req.headers.authorization.split(' ')[1];
-            const {id, role} = jwt.verify(token, secret);
+            const {role, username} = jwt.verify(token, secret);
             if(role !== 'Boss') return res.json({message: "You don't have permission to use this."});
 
             const checkRole = await UserEntity.findOne({username: newBoss, role: 'Boss'})
             if(!checkRole) return res.json({message: "This user has an inappropriate role."})
 
-                const getBoss = await UserEntity.findOne({_id: id})
-                const { username } = getBoss;
                 const getSubordinate = await UserEntity.findOne({username: subordinate, boss: username});
                 if(getSubordinate){
                     await UserEntity.updateOne({username: subordinate},
                         { $set: { boss : newBoss }})
                     return res.json({message: "Boss was changed."});
                 }
-                return res.json({message: `A subordinate with name ${subordinate} was not found.`});
+                return res.json({message: `Subordinate with name ${subordinate} was not found.`});
         } catch (e) {
             return console.log(e);
         }
